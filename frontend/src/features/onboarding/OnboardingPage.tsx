@@ -39,7 +39,7 @@ export function OnboardingPage() {
       <div className="w-full max-w-sm rounded-xl border border-ink-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <span className="text-sm font-semibold tracking-tight">{t('common.appName')}</span>
-          <LanguageSwitcher compact />
+          <LanguageSwitcher />
         </div>
         <h1 className="text-lg font-semibold tracking-tight">{t('onboarding.title')}</h1>
         <p className="mt-2 text-xs leading-relaxed text-ink-500">{t('onboarding.description')}</p>

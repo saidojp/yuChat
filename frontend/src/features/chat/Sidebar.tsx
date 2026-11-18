@@ -96,7 +96,7 @@ export function Sidebar({
                   : 'bg-ink-300'
             }`}
           />
-          <LanguageSwitcher compact />
+          <LanguageSwitcher />
         </div>
       </div>
 

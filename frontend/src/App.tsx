@@ -54,7 +54,7 @@ function SplashScreen() {
     <div className="flex h-screen items-center justify-center bg-ink-50">
       <div className="flex items-center gap-2 text-xs text-ink-400">
         <span className="h-3 w-3 animate-spin rounded-full border border-ink-300 border-t-ink-700" />
-        <LanguageSwitcher compact />
+        <LanguageSwitcher />
       </div>
     </div>
   )
