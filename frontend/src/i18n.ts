@@ -5,8 +5,8 @@ import en from './locales/en'
 import ja from './locales/ja'
 
 export const languages = [
-  { code: 'en', label: 'English' },
-  { code: 'ja', label: '日本語' },
+  { code: 'en', label: 'English', short: 'en' },
+  { code: 'ja', label: '日本語', short: 'jp' },
 ] as const
 
 export type LanguageCode = (typeof languages)[number]['code']
