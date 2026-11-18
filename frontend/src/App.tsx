@@ -1,7 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-import { LanguageSwitcher } from './components/LanguageSwitcher'
 import { AuthPage } from './features/auth/AuthPage'
 import { AuthProvider } from './features/auth/AuthProvider'
 import { useAuth } from './features/auth/useAuth'
@@ -52,10 +51,7 @@ function RedirectIfAuthed({ children }: { children: React.ReactNode }) {
 function SplashScreen() {
   return (
     <div className="flex h-screen items-center justify-center bg-ink-50">
-      <div className="flex items-center gap-2 text-xs text-ink-400">
-        <span className="h-3 w-3 animate-spin rounded-full border border-ink-300 border-t-ink-700" />
-        <LanguageSwitcher />
-      </div>
+      <span className="h-3 w-3 animate-spin rounded-full border border-ink-300 border-t-ink-700" />
     </div>
   )
 }
