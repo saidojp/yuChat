@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+[Bb]in/
+[Oo]bj/
+*.user
+
+# Build output
+frontend/dist/
+frontend/.vite/
+backend/bin/
+backend/obj/
+backend.Tests/bin/
+backend.Tests/obj/
+
+# Secrets — never commit real values
+.env
+.env.local
+*.env.local
+backend/appsettings.Local.json
+backend/appsettings.Production.json
+
+# Tooling / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+TestResults/
+coverage/
+frontend/tsconfig.app.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+
+# Generated OpenAPI types are committed on purpose (openapi.json is not)
+frontend/openapi.json
