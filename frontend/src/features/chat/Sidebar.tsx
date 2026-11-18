@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bell, LogOut, Search, UserPlus, Users } from 'lucide-react'
+import { Bell, LogOut, MessageSquarePlus, UserPlus, UsersRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { api } from '../../api/client'
@@ -59,8 +59,14 @@ export function Sidebar({
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-3">
-        <button type="button" onClick={onOpenSearch} aria-label={t('sidebar.search')} className={actionButton}>
-          <Search size={16} />
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          aria-label={t('sidebar.newChat')}
+          title={t('sidebar.newChat')}
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-ink-900 text-white transition hover:bg-ink-800"
+        >
+          <MessageSquarePlus size={16} />
         </button>
         <button type="button" onClick={onOpenFriends} aria-label={t('sidebar.friends')} className={actionButton}>
           <UserPlus size={16} />
@@ -69,7 +75,7 @@ export function Sidebar({
           ) : null}
         </button>
         <button type="button" onClick={onOpenGroup} aria-label={t('sidebar.createGroup')} className={actionButton}>
-          <Users size={16} />
+          <UsersRound size={16} />
         </button>
         <button
           type="button"
