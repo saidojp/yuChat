@@ -45,8 +45,30 @@ export type ChatParticipant = {
   userHandle: string
 }
 
+export type SystemEventName =
+  | 'FriendRequestReceived'
+  | 'FriendRequestAccepted'
+  | 'FriendRequestDeclined'
+  | 'FriendRequestCancelled'
+  | 'ChatInvitationReceived'
+  | 'ChatInvitationAccepted'
+  | 'ChatInvitationDeclined'
+  | 'AddedToGroup'
+  | 'FriendRemoved'
+
+export type SystemEventPayload = {
+  event: SystemEventName
+  actorId: string | null
+  actorHandle: string | null
+  referenceId: string | null
+  referenceName: string | null
+}
+
+export type ChatKind = 'Direct' | 'Group' | 'System'
+
 export type ChatSummary = {
   id: string
+  kind: ChatKind
   isGroup: boolean
   title: string
   participants: ChatParticipant[]
@@ -54,10 +76,12 @@ export type ChatSummary = {
   lastMessageAt: string
   lastMessageSenderId: string | null
   unreadCount: number
+  lastSystemEvent: SystemEventPayload | null
 }
 
 export type ChatDetails = {
   id: string
+  kind: ChatKind
   isGroup: boolean
   title: string
   createdById: string
@@ -68,11 +92,13 @@ export type ChatDetails = {
 export type Message = {
   id: string
   chatRoomId: string
-  senderId: string
-  senderHandle: string
-  content: string
+  kind: 'User' | 'System'
+  senderId: string | null
+  senderHandle: string | null
+  content: string | null
   clientMessageId: string
   sentAt: string
+  systemEvent: SystemEventPayload | null
 }
 
 export type MessagePage = {
@@ -98,20 +124,6 @@ export type ChatInvitation = {
 export type GroupCreationResult = {
   chat: ChatSummary
   invitedHandles: string[]
-}
-
-export type NotificationItem = {
-  id: string
-  type: 'FriendAccepted' | 'AddedToGroup' | 'InvitationAccepted'
-  referenceId: string
-  actorHandle: string | null
-  isRead: boolean
-  createdAt: string
-}
-
-export type NotificationsPage = {
-  items: NotificationItem[]
-  unreadCount: number
 }
 
 export type TypingEvent = {

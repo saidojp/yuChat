@@ -174,6 +174,9 @@ export const api = {
       body: { action },
     }),
 
+  removeFriend: (friendshipId: string) =>
+    apiRequest<void>(`/api/friends/${friendshipId}`, { method: 'DELETE' }),
+
   // chats
   chats: () => apiRequest<import('./types').ChatSummary[]>('/api/chats'),
 
@@ -207,9 +210,4 @@ export const api = {
       method: 'POST',
       body: { action },
     }),
-
-  // notifications
-  notifications: () => apiRequest<import('./types').NotificationsPage>('/api/notifications'),
-
-  markAllNotificationsRead: () => apiRequest<void>('/api/notifications/read-all', { method: 'POST' }),
 }
