@@ -16,7 +16,7 @@ public sealed class ChatService(
     AppDbContext db,
     ChatAccessService access,
     IMessageEncryptionService encryption,
-    NotificationService notifications,
+    SystemFeedService feeds,
     RealtimeNotifier realtime,
     TimeProvider time)
 {
@@ -26,6 +26,10 @@ public sealed class ChatService(
 
     public async Task<IReadOnlyList<ChatSummaryDto>> GetChatsAsync(Guid userId, CancellationToken cancellationToken)
     {
+        // Make sure the pinned notifications feed exists before listing, so it is always present
+        // even for accounts created before system rooms were introduced.
+        await feeds.EnsureSystemRoomAsync(userId, cancellationToken);
+
         var memberships = await db.ChatMembers
             .AsNoTracking()
             .Where(x => x.UserId == userId)
@@ -34,8 +38,9 @@ public sealed class ChatService(
                 x.ChatRoomId,
                 x.JoinedAt,
                 x.LastReadAt,
-                IsGroup = x.ChatRoom.IsGroup,
+                x.ChatRoom.Kind,
                 Name = x.ChatRoom.Name,
+                SystemOwnerId = x.ChatRoom.SystemOwnerId,
                 x.ChatRoom.LastMessageAt,
                 x.ChatRoom.LastMessageId,
             })
@@ -49,15 +54,17 @@ public sealed class ChatService(
         var roomIds = memberships.Select(x => x.ChatRoomId).ToArray();
         var participants = await LoadParticipantsAsync(roomIds, cancellationToken);
 
+        // System events carry no sender, so "not written by me" has to accept NULL as well;
+        // a plain `SenderId != userId` comparison would silently drop them from the count.
         var unreadByRoom = await db.Messages
             .AsNoTracking()
-            .Where(m => roomIds.Contains(m.ChatRoomId) && m.SenderId != userId)
+            .Where(m => roomIds.Contains(m.ChatRoomId) && (m.SenderId == null || m.SenderId != userId))
             .Join(
                 db.ChatMembers.AsNoTracking().Where(cm => cm.UserId == userId),
                 m => m.ChatRoomId,
                 cm => cm.ChatRoomId,
                 (m, cm) => new { m.ChatRoomId, m.SentAt, m.SenderId, cm.LastReadAt, cm.JoinedAt })
-            .Where(x => x.SenderId != userId && x.SentAt > x.LastReadAt && x.SentAt >= x.JoinedAt)
+            .Where(x => (x.SenderId == null || x.SenderId != userId) && x.SentAt > x.LastReadAt && x.SentAt >= x.JoinedAt)
             .GroupBy(x => x.ChatRoomId)
             .Select(g => new { ChatRoomId = g.Key, Count = g.Count() })
             .ToListAsync(cancellationToken);
@@ -74,17 +81,32 @@ public sealed class ChatService(
             : await db.Messages
                 .AsNoTracking()
                 .Where(x => lastMessageIds.Contains(x.Id))
-                .Select(x => new PreviewRow(x.Id, x.ChatRoomId, x.SenderId, x.CipherText, x.Nonce, x.Tag, x.KeyVersion, x.SentAt))
+                .Select(x => new PreviewRow(
+                    x.Id,
+                    x.ChatRoomId,
+                    x.SenderId,
+                    x.Kind,
+                    x.SystemEvent,
+                    x.ReferenceId,
+                    x.ReferenceName,
+                    x.ActorId,
+                    x.CipherText,
+                    x.Nonce,
+                    x.Tag,
+                    x.KeyVersion,
+                    x.SentAt))
                 .ToListAsync(cancellationToken);
 
         var previewById = lastMessages.ToDictionary(x => x.Id);
+        var actorHandles = await feeds.ActorHandlesAsync(lastMessages.Select(x => x.ActorId), cancellationToken);
 
         var result = new List<ChatSummaryDto>(memberships.Count);
 
         foreach (var membership in memberships)
         {
             var people = participants.GetValueOrDefault(membership.ChatRoomId) ?? [];
-            var title = ResolveTitle(membership.IsGroup, membership.Name, people, userId);
+            var isSystem = membership.Kind == ChatRoomKind.System;
+            var title = ResolveTitle(membership.Kind, membership.Name, people, userId);
 
             previewById.TryGetValue(membership.LastMessageId ?? Guid.Empty, out var preview);
 
@@ -92,17 +114,21 @@ public sealed class ChatService(
 
             result.Add(new ChatSummaryDto(
                 membership.ChatRoomId,
-                membership.IsGroup,
+                membership.Kind.ToString(),
+                isSystem,
                 title,
                 people,
-                visible ? TryDecrypt(preview!) : null,
+                visible && preview!.Kind == MessageKind.User ? TryDecrypt(preview) : null,
                 visible ? preview!.SentAt : membership.LastMessageAt,
                 visible ? preview!.SenderId : null,
-                unreadCounts.GetValueOrDefault(membership.ChatRoomId)));
+                unreadCounts.GetValueOrDefault(membership.ChatRoomId),
+                visible ? BuildSystemPreview(preview!, actorHandles) : null));
         }
 
+        // The system feed behaves like a pinned conversation: it always sits on top.
         return result
-            .OrderByDescending(x => x.LastMessageAt)
+            .OrderByDescending(x => x.Kind == nameof(ChatRoomKind.System))
+            .ThenByDescending(x => x.LastMessageAt)
             .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -118,8 +144,9 @@ public sealed class ChatService(
 
         return new ChatDetailsDto(
             membership.Room.Id,
+            membership.Room.Kind.ToString(),
             membership.Room.IsGroup,
-            ResolveTitle(membership.Room.IsGroup, membership.Room.Name, people, userId),
+            ResolveTitle(membership.Room.Kind, membership.Room.Name, people, userId),
             membership.Room.CreatedById,
             people,
             membership.Member.JoinedAt);
@@ -138,20 +165,22 @@ public sealed class ChatService(
             .AsNoTracking()
             .CountAsync(
                 x => x.ChatRoomId == chatRoomId
-                     && x.SenderId != userId
+                     && (x.SenderId == null || x.SenderId != userId)
                      && x.SentAt > lastReadAt
                      && x.SentAt >= joinedAt,
                 cancellationToken);
 
         return new ChatSummaryDto(
             membership.Room.Id,
+            membership.Room.Kind.ToString(),
             membership.Room.IsGroup,
-            ResolveTitle(membership.Room.IsGroup, membership.Room.Name, people, userId),
+            ResolveTitle(membership.Room.Kind, membership.Room.Name, people, userId),
             people,
             null,
             membership.Room.LastMessageAt,
             null,
-            unread);
+            unread,
+            null);
     }
 
     // ---------------------------------------------------------------- direct chats
@@ -186,7 +215,7 @@ public sealed class ChatService(
         var room = new ChatRoom
         {
             Id = Guid.CreateVersion7(),
-            IsGroup = false,
+            Kind = ChatRoomKind.Direct,
             CreatedById = userId,
             DirectKey = directKey,
             CreatedAt = now,
@@ -267,8 +296,8 @@ public sealed class ChatService(
         var room = new ChatRoom
         {
             Id = Guid.CreateVersion7(),
+            Kind = ChatRoomKind.Group,
             Name = name,
-            IsGroup = true,
             CreatedById = creatorId,
             CreatedAt = now,
             LastMessageAt = now,
@@ -346,6 +375,27 @@ public sealed class ChatService(
             await AddFriendRequestIfPossibleAsync(requesterId, addresseeId, now, cancellationToken);
         }
 
+        // Members added directly get an informational entry; invited users get an actionable card.
+        var feedEvents = new List<(Guid RecipientId, Message Event)>();
+
+        foreach (var memberId in directMemberIds.Except([creatorId]))
+        {
+            feedEvents.Add((memberId, await feeds.AppendAsync(
+                memberId, SystemEvent.AddedToGroup, room.Id, creatorId, name, cancellationToken)));
+        }
+
+        foreach (var invitation in invitations)
+        {
+            feedEvents.Add((invitation.InviteeId, await feeds.AppendAsync(
+                invitation.InviteeId, SystemEvent.ChatInvitationReceived, invitation.Id, creatorId, name, cancellationToken)));
+
+            if (friendRequests.Any(x => x.AddresseeId == invitation.InviteeId))
+            {
+                feedEvents.Add((invitation.InviteeId, await feeds.AppendAsync(
+                    invitation.InviteeId, SystemEvent.FriendRequestReceived, invitation.Id, creatorId, null, cancellationToken)));
+            }
+        }
+
         try
         {
             await db.SaveChangesAsync(cancellationToken);
@@ -367,6 +417,11 @@ public sealed class ChatService(
                 RealtimeEvents.InvitationReceived,
                 new ChatInvitationDto(invitation.Id, room.Id, name, creatorHandle.GetValueOrDefault(creatorId, "unknown"), invitation.CreatedAt),
                 cancellationToken);
+        }
+
+        foreach (var (recipientId, feedEvent) in feedEvents)
+        {
+            await feeds.PublishAsync(recipientId, feedEvent, cancellationToken);
         }
 
         return new GroupCreationResultDto(summary, invitedHandles);
@@ -412,7 +467,7 @@ public sealed class ChatService(
         invitation.Status = accept ? InvitationStatus.Accepted : InvitationStatus.Declined;
         invitation.RespondedAt = now;
 
-        Notification? notification = null;
+        Message? feedEvent = null;
 
         if (accept)
         {
@@ -430,16 +485,19 @@ public sealed class ChatService(
                 });
             }
 
-            notification = new Notification
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = invitation.InviterId,
-                Type = NotificationType.InvitationAccepted,
-                ReferenceId = invitation.Id,
-                CreatedAt = now,
-            };
+            var roomName = await db.ChatRooms
+                .AsNoTracking()
+                .Where(x => x.Id == invitation.ChatRoomId)
+                .Select(x => x.Name)
+                .SingleAsync(cancellationToken);
 
-            db.Notifications.Add(notification);
+            feedEvent = await feeds.AppendAsync(
+                invitation.InviterId,
+                SystemEvent.ChatInvitationAccepted,
+                invitation.Id,
+                userId,
+                roomName,
+                cancellationToken);
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -456,13 +514,9 @@ public sealed class ChatService(
         var memberIds = await GetMemberIdsAsync(invitation.ChatRoomId, cancellationToken);
         await realtime.ToUsersAsync(memberIds.Except([userId]), RealtimeEvents.ChatUpdated, summary, cancellationToken);
 
-        if (notification is not null)
+        if (feedEvent is not null)
         {
-            await realtime.ToUserAsync(
-                invitation.InviterId,
-                RealtimeEvents.Notification,
-                await notifications.BuildAsync(notification, cancellationToken),
-                cancellationToken);
+            await feeds.PublishAsync(invitation.InviterId, feedEvent, cancellationToken);
         }
 
         return summary;
@@ -500,6 +554,11 @@ public sealed class ChatService(
                 x.Id,
                 x.ChatRoomId,
                 x.SenderId,
+                x.Kind,
+                x.SystemEvent,
+                x.ReferenceId,
+                x.ReferenceName,
+                x.ActorId,
                 x.CipherText,
                 x.Nonce,
                 x.Tag,
@@ -515,20 +574,16 @@ public sealed class ChatService(
             rows.RemoveAt(rows.Count - 1);
         }
 
-        var senderHandles = await access.GetHandlesAsync(rows.Select(x => x.SenderId), cancellationToken);
+        // System events are authored by the actor (or nobody), so both id sets need resolving.
+        var handles = await access.GetHandlesAsync(
+            rows.SelectMany(x => new[] { x.SenderId, x.ActorId }),
+            cancellationToken);
 
         // Queried newest-first for the keyset cursor, returned oldest-first for rendering.
         rows.Reverse();
 
         var messages = rows
-            .Select(row => new MessageDto(
-                row.Id,
-                row.ChatRoomId,
-                row.SenderId,
-                senderHandles.GetValueOrDefault(row.SenderId, "unknown"),
-                encryption.Decrypt(row.CipherText, row.Nonce, row.Tag, row.KeyVersion, row.ChatRoomId, row.Id),
-                row.ClientMessageId,
-                row.SentAt))
+            .Select(row => ToDto(row, handles))
             .ToList();
 
         return new MessagePageDto(messages, hasMore);
@@ -541,7 +596,14 @@ public sealed class ChatService(
         string content,
         CancellationToken cancellationToken)
     {
-        await access.RequireMemberAsync(chatRoomId, senderId, cancellationToken);
+        var membership = await access.RequireMemberAsync(chatRoomId, senderId, cancellationToken);
+
+        if (membership.Room.IsSystem)
+        {
+            throw AppException.BadRequest(
+                ErrorCodes.Unsupported,
+                "System notifications are generated by the server and cannot be written to.");
+        }
 
         var text = content?.Trim() ?? string.Empty;
 
@@ -575,6 +637,11 @@ public sealed class ChatService(
                 x.Id,
                 x.ChatRoomId,
                 x.SenderId,
+                x.Kind,
+                x.SystemEvent,
+                x.ReferenceId,
+                x.ReferenceName,
+                x.ActorId,
                 x.CipherText,
                 x.Nonce,
                 x.Tag,
@@ -626,6 +693,11 @@ public sealed class ChatService(
                     x.Id,
                     x.ChatRoomId,
                     x.SenderId,
+                    x.Kind,
+                    x.SystemEvent,
+                    x.ReferenceId,
+                    x.ReferenceName,
+                    x.ActorId,
                     x.CipherText,
                     x.Nonce,
                     x.Tag,
@@ -644,6 +716,11 @@ public sealed class ChatService(
                 x.Id,
                 x.ChatRoomId,
                 x.SenderId,
+                x.Kind,
+                x.SystemEvent,
+                x.ReferenceId,
+                x.ReferenceName,
+                x.ActorId,
                 x.CipherText,
                 x.Nonce,
                 x.Tag,
@@ -653,7 +730,7 @@ public sealed class ChatService(
             .SingleAsync(cancellationToken);
 
         return new OutgoingMessage(
-            new MessageDto(saved.Id, chatRoomId, senderId, senderHandle, text, clientMessageId, saved.SentAt),
+            ToDto(saved, new Dictionary<Guid, string> { [senderId] = senderHandle }),
             await GetMemberIdsAsync(chatRoomId, cancellationToken));
     }
 
@@ -725,16 +802,46 @@ public sealed class ChatService(
 
     private async Task<OutgoingMessage> ToOutgoingAsync(MessageRow row, string senderHandle, CancellationToken cancellationToken)
     {
-        var dto = new MessageDto(
-            row.Id,
-            row.ChatRoomId,
-            row.SenderId,
-            senderHandle,
-            encryption.Decrypt(row.CipherText, row.Nonce, row.Tag, row.KeyVersion, row.ChatRoomId, row.Id),
-            row.ClientMessageId,
-            row.SentAt);
+        var dto = ToDto(row, new Dictionary<Guid, string> { [row.SenderId!.Value] = senderHandle });
 
         return new OutgoingMessage(dto, await GetMemberIdsAsync(row.ChatRoomId, cancellationToken));
+    }
+
+    private MessageDto ToDto(MessageRow row, Dictionary<Guid, string> handles)
+    {
+        if (row.Kind == MessageKind.System)
+        {
+            var systemEvent = row.SystemEvent is null
+                ? null
+                : new SystemEventPreviewDto(
+                    row.SystemEvent.Value.ToString(),
+                    row.ActorId,
+                    row.ActorId is null ? null : handles.GetValueOrDefault(row.ActorId.Value),
+                    row.ReferenceId,
+                    row.ReferenceName);
+
+            return new MessageDto(
+                row.Id,
+                row.ChatRoomId,
+                nameof(MessageKind.System),
+                null,
+                systemEvent?.ActorHandle,
+                null,
+                row.ClientMessageId,
+                row.SentAt,
+                systemEvent);
+        }
+
+        return new MessageDto(
+            row.Id,
+            row.ChatRoomId,
+            nameof(MessageKind.User),
+            row.SenderId,
+            row.SenderId is null ? null : handles.GetValueOrDefault(row.SenderId.Value, "unknown"),
+            encryption.Decrypt(row.CipherText, row.Nonce, row.Tag, row.KeyVersion, row.ChatRoomId, row.Id),
+            row.ClientMessageId,
+            row.SentAt,
+            null);
     }
 
     private string? TryDecrypt(PreviewRow row)
@@ -811,15 +918,38 @@ public sealed class ChatService(
                     .ToList());
     }
 
-    private static string ResolveTitle(bool isGroup, string? name, List<ChatParticipantDto> people, Guid userId) =>
-        isGroup
-            ? name ?? "Group"
-            : people.FirstOrDefault(x => x.UserId != userId)?.UserHandle ?? "Direct chat";
+    private static string ResolveTitle(ChatRoomKind kind, string? name, List<ChatParticipantDto> people, Guid userId) =>
+        kind switch
+        {
+            ChatRoomKind.Group => name ?? "Group",
+            ChatRoomKind.System => "Notifications",
+            _ => people.FirstOrDefault(x => x.UserId != userId)?.UserHandle ?? "Direct chat",
+        };
+
+    private static SystemEventPreviewDto? BuildSystemPreview(PreviewRow row, Dictionary<Guid, string> actorHandles)
+    {
+        if (row.Kind != MessageKind.System || row.SystemEvent is null)
+        {
+            return null;
+        }
+
+        return new SystemEventPreviewDto(
+            row.SystemEvent.Value.ToString(),
+            row.ActorId,
+            row.ActorId is null ? null : actorHandles.GetValueOrDefault(row.ActorId.Value),
+            row.ReferenceId,
+            row.ReferenceName);
+    }
 
     private sealed record MessageRow(
         Guid Id,
         Guid ChatRoomId,
-        Guid SenderId,
+        Guid? SenderId,
+        MessageKind Kind,
+        SystemEvent? SystemEvent,
+        Guid? ReferenceId,
+        string? ReferenceName,
+        Guid? ActorId,
         byte[] CipherText,
         byte[] Nonce,
         byte[] Tag,
@@ -830,7 +960,12 @@ public sealed class ChatService(
     private sealed record PreviewRow(
         Guid Id,
         Guid ChatRoomId,
-        Guid SenderId,
+        Guid? SenderId,
+        MessageKind Kind,
+        SystemEvent? SystemEvent,
+        Guid? ReferenceId,
+        string? ReferenceName,
+        Guid? ActorId,
         byte[] CipherText,
         byte[] Nonce,
         byte[] Tag,

@@ -25,10 +25,16 @@ export function SearchModal({
     return () => window.clearTimeout(timer)
   }, [query])
 
+  const searching = debounced.length >= 2
+
+  // Opening the dialog already lists existing friends, so starting a chat is one click away
+  // instead of hiding behind the friends modal.
+  const friends = useQuery({ queryKey: ['friends'], queryFn: api.friends, staleTime: 30_000 })
+
   const results = useQuery({
     queryKey: ['user-search', debounced],
     queryFn: ({ signal }) => api.searchUsers(debounced, signal),
-    enabled: debounced.length >= 2,
+    enabled: searching,
     staleTime: 10_000,
   })
 
@@ -57,8 +63,11 @@ export function SearchModal({
     },
   })
 
+  const busy = friend.isPending || startChat.isPending
+  const friendList = friends.data?.friends ?? []
+
   return (
-    <Modal title={t('search.title')} onClose={onClose}>
+    <Modal title={t('sidebar.newChat')} onClose={onClose}>
       <input
         value={query}
         onChange={(event) => setQuery(event.target.value)}
@@ -67,27 +76,64 @@ export function SearchModal({
         className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm outline-none transition placeholder:text-ink-400 focus:border-ink-400"
       />
 
-      {debounced.length < 2 ? <p className="mt-2 text-[11px] text-ink-400">{t('search.hint')}</p> : null}
-
       {error ? <p className="mt-2 rounded-lg bg-ink-100 px-3 py-2 text-xs text-ink-700">{error}</p> : null}
 
-      <div className="mt-3 space-y-1">
-        {results.isFetching ? <p className="px-1 py-2 text-xs text-ink-400">{t('common.loading')}</p> : null}
+      {!searching ? (
+        <div className="mt-3">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+            {t('sidebar.friends')}
+          </p>
 
-        {debounced.length >= 2 && !results.isFetching && results.data?.length === 0 ? (
-          <p className="px-1 py-2 text-xs text-ink-400">{t('search.noResults')}</p>
-        ) : null}
+          {friendList.length === 0 ? (
+            <p className="px-1 py-2 text-xs text-ink-400">{t('friends.empty')}</p>
+          ) : (
+            <div className="space-y-0.5">
+              {friendList.map((friendship) => (
+                <div
+                  key={friendship.id}
+                  className="flex items-center gap-2 rounded-lg px-2 py-2 transition hover:bg-ink-50"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink-900 text-[11px] font-semibold text-white">
+                    {friendship.user.userHandle.slice(0, 2).toUpperCase()}
+                  </div>
 
-        {results.data?.map((user) => (
-          <UserRow
-            key={user.id}
-            user={user}
-            onAddFriend={() => friend.mutate(user.userHandle)}
-            onOpenChat={() => startChat.mutate(user.id)}
-            busy={friend.isPending || startChat.isPending}
-          />
-        ))}
-      </div>
+                  <p className="min-w-0 flex-1 truncate text-[13px] font-medium">@{friendship.user.userHandle}</p>
+
+                  <button
+                    type="button"
+                    onClick={() => startChat.mutate(friendship.user.id)}
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-lg bg-ink-900 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-800 disabled:opacity-50"
+                  >
+                    <MessageSquare size={11} />
+                    {t('search.openChat')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-3 px-1 text-[10px] text-ink-400">{t('search.hint')}</p>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-1">
+          {results.isFetching ? <p className="px-1 py-2 text-xs text-ink-400">{t('common.loading')}</p> : null}
+
+          {!results.isFetching && results.data?.length === 0 ? (
+            <p className="px-1 py-2 text-xs text-ink-400">{t('search.noResults')}</p>
+          ) : null}
+
+          {results.data?.map((user) => (
+            <UserRow
+              key={user.id}
+              user={user}
+              onAddFriend={() => friend.mutate(user.userHandle)}
+              onOpenChat={() => startChat.mutate(user.id)}
+              busy={busy}
+            />
+          ))}
+        </div>
+      )}
     </Modal>
   )
 }

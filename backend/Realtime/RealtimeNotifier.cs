@@ -46,7 +46,6 @@ public static class RealtimeEvents
     public const string TypingChanged = "TypingChanged";
     public const string PresenceChanged = "PresenceChanged";
     public const string PresenceSnapshot = "PresenceSnapshot";
-    public const string Notification = "Notification";
     public const string FriendRequestUpdated = "FriendRequestUpdated";
     public const string InvitationUpdated = "InvitationUpdated";
     public const string InvitationReceived = "InvitationReceived";

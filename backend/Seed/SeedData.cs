@@ -81,7 +81,7 @@ public static class SeedData
         var direct = new ChatRoom
         {
             Id = Guid.CreateVersion7(),
-            IsGroup = false,
+            Kind = ChatRoomKind.Direct,
             CreatedById = alice.Id,
             DirectKey = ChatRoom.BuildDirectKey(alice.Id, bob.Id),
             CreatedAt = joinedAt,
@@ -98,7 +98,7 @@ public static class SeedData
         {
             Id = Guid.CreateVersion7(),
             Name = "Design sync",
-            IsGroup = true,
+            Kind = ChatRoomKind.Group,
             CreatedById = alice.Id,
             CreatedAt = joinedAt,
             LastMessageAt = joinedAt,

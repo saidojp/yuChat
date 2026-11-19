@@ -18,7 +18,6 @@ export function MessageList({
   messages,
   pending,
   currentUserId,
-  typingHandles,
   hasMore,
   loadingOlder,
   onLoadOlder,
@@ -26,7 +25,6 @@ export function MessageList({
   messages: Message[]
   pending: PendingMessage[]
   currentUserId: string
-  typingHandles: string[]
   hasMore: boolean
   loadingOlder: boolean
   onLoadOlder: () => void
@@ -61,13 +59,6 @@ export function MessageList({
 
     return result
   }, [messages])
-
-  const typingLabel =
-    typingHandles.length === 0
-      ? null
-      : typingHandles.length === 1
-        ? t('chat.typing', { handle: typingHandles[0] })
-        : t('chat.typingSeveral')
 
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto px-5 py-4 scrollbar-thin">
@@ -147,28 +138,8 @@ export function MessageList({
 
       <div className="h-4" />
 
-      {typingLabel ? (
-        <div className="flex items-center gap-1.5 px-1 text-[11px] text-ink-400">
-          <span className="flex gap-0.5">
-            <Dot delay="0ms" />
-            <Dot delay="150ms" />
-            <Dot delay="300ms" />
-          </span>
-          {typingLabel}
-        </div>
-      ) : null}
-
       <div ref={bottomRef} />
     </div>
-  )
-}
-
-function Dot({ delay }: { delay: string }) {
-  return (
-    <span
-      className="h-1 w-1 animate-bounce rounded-full bg-ink-400"
-      style={{ animationDelay: delay, animationDuration: '1s' }}
-    />
   )
 }
 

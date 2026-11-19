@@ -100,8 +100,10 @@ namespace YuChat.Data.Migrations
                         .HasMaxLength(65)
                         .HasColumnType("character varying(65)");
 
-                    b.Property<bool>("IsGroup")
-                        .HasColumnType("boolean");
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
 
                     b.Property<DateTime>("LastMessageAt")
                         .HasColumnType("timestamp with time zone");
@@ -113,12 +115,18 @@ namespace YuChat.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
+                    b.Property<Guid?>("SystemOwnerId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DirectKey")
                         .IsUnique();
 
                     b.HasIndex("LastMessageAt");
+
+                    b.HasIndex("SystemOwnerId")
+                        .IsUnique();
 
                     b.ToTable("ChatRooms", (string)null);
                 });
@@ -169,6 +177,9 @@ namespace YuChat.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ActorId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("ChatRoomId")
                         .HasColumnType("uuid");
 
@@ -182,16 +193,32 @@ namespace YuChat.Data.Migrations
                     b.Property<int>("KeyVersion")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<byte[]>("Nonce")
                         .IsRequired()
                         .HasMaxLength(12)
                         .HasColumnType("bytea");
 
-                    b.Property<Guid>("SenderId")
+                    b.Property<Guid?>("ReferenceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReferenceName")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid?>("SenderId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SystemEvent")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<byte[]>("Tag")
                         .IsRequired()
@@ -201,41 +228,12 @@ namespace YuChat.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("SenderId", "ClientMessageId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"SenderId\" IS NOT NULL");
 
                     b.HasIndex("ChatRoomId", "SentAt", "Id");
 
                     b.ToTable("Messages", (string)null);
-                });
-
-            modelBuilder.Entity("YuChat.Domain.Notification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("ReferenceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "IsRead", "CreatedAt");
-
-                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("YuChat.Domain.RefreshToken", b =>
@@ -399,23 +397,11 @@ namespace YuChat.Data.Migrations
                     b.HasOne("YuChat.Domain.User", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("ChatRoom");
 
                     b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("YuChat.Domain.Notification", b =>
-                {
-                    b.HasOne("YuChat.Domain.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("YuChat.Domain.RefreshToken", b =>

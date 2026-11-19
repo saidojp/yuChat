@@ -115,6 +115,14 @@ export function Sidebar({
           <div className="px-2 py-6 text-center">
             <p className="text-xs text-ink-500">{t('sidebar.emptyChats')}</p>
             <p className="mt-1 text-[11px] text-ink-400">{t('sidebar.emptyChatsHint')}</p>
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              className="mt-3 inline-flex items-center gap-1 rounded-lg bg-ink-900 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-ink-800"
+            >
+              <MessageSquarePlus size={11} />
+              {t('sidebar.newChat')}
+            </button>
           </div>
         ) : (
           <ul className="space-y-0.5">

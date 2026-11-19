@@ -59,8 +59,10 @@ public sealed class ChatRoomConfiguration : IEntityTypeConfiguration<ChatRoom>
 
         builder.Property(x => x.Name).HasMaxLength(80);
         builder.Property(x => x.DirectKey).HasMaxLength(65);
+        builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
 
         builder.HasIndex(x => x.DirectKey).IsUnique();
+        builder.HasIndex(x => x.SystemOwnerId).IsUnique();
         builder.HasIndex(x => x.LastMessageAt);
     }
 }
@@ -126,11 +128,17 @@ public sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
 
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+        builder.Property(x => x.SystemEvent).HasConversion<string>().HasMaxLength(32);
+        builder.Property(x => x.ReferenceName).HasMaxLength(80);
         builder.Property(x => x.CipherText).IsRequired();
         builder.Property(x => x.Nonce).HasMaxLength(12).IsRequired();
         builder.Property(x => x.Tag).HasMaxLength(16).IsRequired();
 
-        builder.HasIndex(x => new { x.SenderId, x.ClientMessageId }).IsUnique();
+        // System events have no sender; the unique index must therefore only cover user messages.
+        builder.HasIndex(x => new { x.SenderId, x.ClientMessageId })
+            .IsUnique()
+            .HasFilter("\"SenderId\" IS NOT NULL");
         builder.HasIndex(x => new { x.ChatRoomId, x.SentAt, x.Id });
 
         builder.HasOne(x => x.ChatRoom)
@@ -141,25 +149,7 @@ public sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
         builder.HasOne(x => x.Sender)
             .WithMany()
             .HasForeignKey(x => x.SenderId)
-            .OnDelete(DeleteBehavior.Cascade);
-    }
-}
-
-public sealed class NotificationConfiguration : IEntityTypeConfiguration<Notification>
-{
-    public void Configure(EntityTypeBuilder<Notification> builder)
-    {
-        builder.ToTable("Notifications");
-
-        builder.HasKey(x => x.Id);
-
-        builder.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
-
-        builder.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAt });
-
-        builder.HasOne(x => x.User)
-            .WithMany()
-            .HasForeignKey(x => x.UserId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

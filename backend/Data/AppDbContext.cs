@@ -11,7 +11,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ChatMember> ChatMembers => Set<ChatMember>();
     public DbSet<ChatInvitation> ChatInvitations => Set<ChatInvitation>();
     public DbSet<Message> Messages => Set<Message>();
-    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

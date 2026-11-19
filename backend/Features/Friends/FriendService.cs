@@ -11,7 +11,7 @@ namespace YuChat.Features.Friends;
 
 public sealed class FriendService(
     AppDbContext db,
-    NotificationService notifications,
+    SystemFeedService feeds,
     RealtimeNotifier realtime,
     TimeProvider time)
 {
@@ -91,21 +91,22 @@ public sealed class FriendService(
                     existing.RespondedAt = now;
 
                     var self = await db.Users.AsNoTracking().SingleAsync(x => x.Id == requesterId, cancellationToken);
-                    var acceptedNotification = new Notification
-                    {
-                        Id = Guid.CreateVersion7(),
-                        UserId = target.Id,
-                        Type = NotificationType.FriendAccepted,
-                        ReferenceId = existing.Id,
-                        CreatedAt = now,
-                    };
 
-                    db.Notifications.Add(acceptedNotification);
+                    // The addressee asked first, so the requester's feed gets "accepted" and the
+                    // original requester's own request no longer needs an actionable card.
+                    var accepted = await feeds.AppendAsync(
+                        requesterId,
+                        SystemEvent.FriendRequestAccepted,
+                        existing.Id,
+                        target.Id,
+                        null,
+                        cancellationToken);
+
                     await db.SaveChangesAsync(cancellationToken);
+                    await feeds.PublishAsync(requesterId, accepted, cancellationToken);
 
                     await realtime.ToUserAsync(requesterId, RealtimeEvents.FriendRequestUpdated, BuildDto(existing, target.Id, target.UserHandle!, FriendshipState.Friends, true), cancellationToken);
                     await realtime.ToUserAsync(target.Id, RealtimeEvents.FriendRequestUpdated, BuildDto(existing, self.Id, self.UserHandle ?? self.Login, FriendshipState.Friends, true), cancellationToken);
-                    await realtime.ToUserAsync(target.Id, RealtimeEvents.Notification, await notifications.BuildAsync(acceptedNotification, cancellationToken), cancellationToken);
 
                     return new FriendshipDto(
                         existing.Id,
@@ -149,6 +150,18 @@ public sealed class FriendService(
         }
 
         var requester = await db.Users.AsNoTracking().SingleAsync(x => x.Id == requesterId, cancellationToken);
+
+        var requestEvent = await feeds.AppendAsync(
+            target.Id,
+            SystemEvent.FriendRequestReceived,
+            existing.Id,
+            requesterId,
+            null,
+            cancellationToken);
+
+        // A re-opened (previously declined) row starts a fresh feed entry, so persist it too.
+        await db.SaveChangesAsync(cancellationToken);
+        await feeds.PublishAsync(target.Id, requestEvent, cancellationToken);
 
         await realtime.ToUserAsync(target.Id, RealtimeEvents.FriendRequestUpdated, new FriendshipDto(
             existing.Id,
@@ -195,21 +208,13 @@ public sealed class FriendService(
         friendship.Status = accepted ? FriendshipStatus.Accepted : FriendshipStatus.Declined;
         friendship.RespondedAt = now;
 
-        Notification? notification = null;
-
-        if (accepted)
-        {
-            notification = new Notification
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = friendship.RequesterId,
-                Type = NotificationType.FriendAccepted,
-                ReferenceId = friendship.Id,
-                CreatedAt = now,
-            };
-
-            db.Notifications.Add(notification);
-        }
+        var feedEvent = await feeds.AppendAsync(
+            friendship.RequesterId,
+            accepted ? SystemEvent.FriendRequestAccepted : SystemEvent.FriendRequestDeclined,
+            friendship.Id,
+            userId,
+            null,
+            cancellationToken);
 
         await db.SaveChangesAsync(cancellationToken);
 
@@ -239,13 +244,47 @@ public sealed class FriendService(
 
         await realtime.ToUserAsync(friendship.RequesterId, RealtimeEvents.FriendRequestUpdated, requesterDto, cancellationToken);
         await realtime.ToUserAsync(friendship.AddresseeId, RealtimeEvents.FriendRequestUpdated, selfDto, cancellationToken);
-
-        if (notification is not null)
-        {
-            await realtime.ToUserAsync(friendship.RequesterId, RealtimeEvents.Notification, await notifications.BuildAsync(notification, cancellationToken), cancellationToken);
-        }
+        await feeds.PublishAsync(friendship.RequesterId, feedEvent, cancellationToken);
 
         return selfDto;
+    }
+
+    /// <summary>
+    /// Removes a friendship, or cancels a pending request. The direct chat and its history are kept
+    /// on purpose (same as WhatsApp): only new conversations require friendship.
+    /// </summary>
+    public async Task RemoveAsync(Guid userId, Guid friendshipId, CancellationToken cancellationToken)
+    {
+        var friendship = await db.Friendships
+            .Include(x => x.Requester)
+            .Include(x => x.Addressee)
+            .SingleOrDefaultAsync(x => x.Id == friendshipId, cancellationToken);
+
+        if (friendship is null || (friendship.RequesterId != userId && friendship.AddresseeId != userId))
+        {
+            throw AppException.NotFound("Friendship was not found.");
+        }
+
+        var otherUserId = friendship.RequesterId == userId ? friendship.AddresseeId : friendship.RequesterId;
+        var wasAccepted = friendship.Status == FriendshipStatus.Accepted;
+
+        db.Friendships.Remove(friendship);
+
+        // The other side learns about it in their feed; cancelations of a pending request are silent
+        // for the requester so a declined/cancelled request does not nag twice.
+        var feedEvent = wasAccepted
+            ? await feeds.AppendAsync(otherUserId, SystemEvent.FriendRemoved, friendshipId, userId, null, cancellationToken)
+            : null;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        if (feedEvent is not null)
+        {
+            await feeds.PublishAsync(otherUserId, feedEvent, cancellationToken);
+        }
+
+        await realtime.ToUserAsync(userId, RealtimeEvents.FriendRequestUpdated, new { friendshipId, removed = true }, cancellationToken);
+        await realtime.ToUserAsync(otherUserId, RealtimeEvents.FriendRequestUpdated, new { friendshipId, removed = true }, cancellationToken);
     }
 
     internal async Task<IReadOnlyList<Guid>> GetFriendIdsAsync(Guid userId, CancellationToken cancellationToken) =>

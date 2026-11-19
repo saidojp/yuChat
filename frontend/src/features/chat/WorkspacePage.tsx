@@ -61,11 +61,15 @@ export function WorkspacePage() {
       void queryClient.invalidateQueries({ queryKey: ['invitations'] })
       void queryClient.invalidateQueries({ queryKey: ['notifications'] })
     })
-    const unsubscribeChatCreated = chatConnection.on('chatCreated', () => {
+    const unsubscribeChatCreated = chatConnection.on('chatCreated', (chat) => {
       void queryClient.invalidateQueries({ queryKey: ['chats'] })
+      // Subscribe this connection to the new room immediately: a freshly added group member must
+      // receive typing/read events even before opening the chat.
+      void chatConnection.joinChat(chat.id)
     })
-    const unsubscribeChatUpdated = chatConnection.on('chatUpdated', () => {
+    const unsubscribeChatUpdated = chatConnection.on('chatUpdated', (chat) => {
       void queryClient.invalidateQueries({ queryKey: ['chats'] })
+      void chatConnection.joinChat(chat.id)
     })
 
     void chatConnection.start()

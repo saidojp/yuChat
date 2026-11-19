@@ -89,8 +89,8 @@ builder.Services.AddSingleton<IMessageEncryptionService, AesGcmMessageEncryption
 builder.Services.AddSingleton<RealtimeNotifier>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddScoped<SystemFeedService>();
 builder.Services.AddScoped<ChatAccessService>();
-builder.Services.AddScoped<NotificationService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<FriendService>();
@@ -190,7 +190,6 @@ app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapFriendEndpoints();
 app.MapChatEndpoints();
-app.MapNotificationEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 
 if (args.Contains("--seed"))

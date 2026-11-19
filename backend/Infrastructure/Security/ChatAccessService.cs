@@ -88,4 +88,8 @@ public sealed class ChatAccessService(AppDbContext db)
             .Where(x => ids.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, x => x.UserHandle ?? x.Login, cancellationToken);
     }
+
+    /// <summary>Nullable-friendly overload: system events have either no sender or no actor.</summary>
+    public Task<Dictionary<Guid, string>> GetHandlesAsync(IEnumerable<Guid?> userIds, CancellationToken cancellationToken) =>
+        GetHandlesAsync(userIds.Where(x => x.HasValue).Select(x => x!.Value), cancellationToken);
 }

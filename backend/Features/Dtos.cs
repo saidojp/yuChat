@@ -71,16 +71,27 @@ public sealed record ChatParticipantDto(Guid UserId, string UserHandle);
 
 public sealed record ChatSummaryDto(
     Guid Id,
+    string Kind,
     bool IsGroup,
     string Title,
     IReadOnlyList<ChatParticipantDto> Participants,
     string? LastMessagePreview,
     DateTime LastMessageAt,
     Guid? LastMessageSenderId,
-    int UnreadCount);
+    int UnreadCount,
+    SystemEventPreviewDto? LastSystemEvent);
+
+/// <summary>Structured description of the newest system event, rendered client-side in the reader's language.</summary>
+public sealed record SystemEventPreviewDto(
+    string Event,
+    Guid? ActorId,
+    string? ActorHandle,
+    Guid? ReferenceId,
+    string? ReferenceName);
 
 public sealed record ChatDetailsDto(
     Guid Id,
+    string Kind,
     bool IsGroup,
     string Title,
     Guid CreatedById,
@@ -90,11 +101,13 @@ public sealed record ChatDetailsDto(
 public sealed record MessageDto(
     Guid Id,
     Guid ChatRoomId,
-    Guid SenderId,
-    string SenderHandle,
-    string Content,
+    string Kind,
+    Guid? SenderId,
+    string? SenderHandle,
+    string? Content,
     Guid ClientMessageId,
-    DateTime SentAt);
+    DateTime SentAt,
+    SystemEventPreviewDto? SystemEvent);
 
 public sealed record MessagePageDto(
     IReadOnlyList<MessageDto> Messages,
@@ -112,20 +125,6 @@ public sealed record ChatInvitationDto(
 public sealed record GroupCreationResultDto(
     ChatSummaryDto Chat,
     IReadOnlyList<string> InvitedHandles);
-
-// ---- Notifications ----
-
-public sealed record NotificationDto(
-    Guid Id,
-    string Type,
-    Guid ReferenceId,
-    string? ActorHandle,
-    bool IsRead,
-    DateTime CreatedAt);
-
-public sealed record NotificationsPageDto(
-    IReadOnlyList<NotificationDto> Items,
-    int UnreadCount);
 
 // ---- Realtime payloads ----
 

@@ -29,6 +29,17 @@ public static class FriendEndpoints
             Results.Ok(await friends.RespondAsync(currentUser.RequireUserId(), friendshipId, request.Action ?? string.Empty, cancellationToken)))
             .WithName("RespondToFriendRequest");
 
+        group.MapDelete("/{friendshipId:guid}", async (
+            Guid friendshipId,
+            FriendService friends,
+            ICurrentUser currentUser,
+            CancellationToken cancellationToken) =>
+        {
+            await friends.RemoveAsync(currentUser.RequireUserId(), friendshipId, cancellationToken);
+            return Results.NoContent();
+        })
+        .WithName("RemoveFriend");
+
         return app;
     }
 }

@@ -56,6 +56,7 @@ export function ChatView({
   useEffect(() => {
     setPending([])
     setDraft('')
+    setTypingUsers(new Map())
 
     if (chatId) {
       void chatConnection.joinChat(chatId)
@@ -265,8 +266,20 @@ export function ChatView({
   }
 
   const peer = chat.isGroup ? null : (chat.participants.find((participant) => participant.userId !== user?.id) ?? null)
+
   // Expiry is driven by timers registered when the event arrives, so no clock read during render.
-  const activeTyping = [...typingUsers.values()].map((entry) => entry.handle)
+  const typingHandles = [...typingUsers.entries()]
+    .filter(([userId]) => userId !== user?.id)
+    .map(([, entry]) => entry.handle)
+
+  const typingLabel =
+    typingHandles.length === 0
+      ? null
+      : typingHandles.length === 1
+        ? t('chat.typing', { handle: typingHandles[0] })
+        : typingHandles.length === 2
+          ? t('chat.typingTwo', { first: typingHandles[0], second: typingHandles[1] })
+          : t('chat.typingSeveral', { count: typingHandles.length })
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-white">
@@ -291,6 +304,7 @@ export function ChatView({
           <h2 className="truncate text-sm font-semibold leading-tight">
             {chat.isGroup ? chat.title : `@${chat.title}`}
           </h2>
+
           <p className="truncate text-[11px] leading-tight text-ink-400">
             {chat.isGroup ? (
               <button type="button" onClick={onOpenMembers} className="inline-flex items-center gap-1 hover:text-ink-700">
@@ -305,6 +319,20 @@ export function ChatView({
               )
             ) : null}
           </p>
+
+          {/* Reserved height keeps the header from jumping when somebody starts or stops typing. */}
+          <div className="h-3.5 truncate text-[10px] leading-3.5">
+            {typingLabel ? (
+              <span className="inline-flex items-center gap-1 text-ink-500">
+                <span className="flex gap-0.5">
+                  <Dot delay="0ms" />
+                  <Dot delay="150ms" />
+                  <Dot delay="300ms" />
+                </span>
+                {typingLabel}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div
@@ -320,7 +348,6 @@ export function ChatView({
         messages={messages}
         pending={pending}
         currentUserId={user?.id ?? ''}
-        typingHandles={activeTyping}
         hasMore={history.data?.hasMore ?? false}
         loadingOlder={loadingOlder}
         onLoadOlder={() => void loadOlder()}
@@ -362,6 +389,15 @@ export function ChatView({
         </form>
       </div>
     </section>
+  )
+}
+
+function Dot({ delay }: { delay: string }) {
+  return (
+    <span
+      className="h-1 w-1 animate-bounce rounded-full bg-ink-400"
+      style={{ animationDelay: delay, animationDuration: '1s' }}
+    />
   )
 }
 
