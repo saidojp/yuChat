@@ -162,6 +162,9 @@ export const api = {
       signal,
     }),
 
+  search: (query: string, signal?: AbortSignal) =>
+    apiRequest<import('./types').SearchResponse>(`/api/search?query=${encodeURIComponent(query)}`, { signal }),
+
   // friends
   friends: () => apiRequest<import('./types').FriendsOverview>('/api/friends'),
 

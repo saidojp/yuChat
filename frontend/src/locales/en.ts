@@ -47,6 +47,10 @@ const en = {
     connected: 'Connected',
   },
   search: {
+    barPlaceholder: 'Search',
+    clear: 'Clear',
+    chatsSection: 'Chats',
+    peopleSection: 'People',
     title: 'Find people',
     placeholder: 'Search by User ID',
     hint: 'Type at least 2 characters.',

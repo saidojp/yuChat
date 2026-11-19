@@ -12,7 +12,7 @@ Japanese is selected automatically when the browser prefers it.
 .
 ├── YuChat.slnx     solution: backend + tests
 ├── backend/        ASP.NET Core Web API (.NET 10) + SignalR + EF Core
-├── backend.Tests/  xUnit: encryption, access control and system feed tests
+├── backend.Tests/  xUnit: encryption, access control, system feed and search tests
 ├── frontend/       Vite + React + TypeScript + Tailwind CSS
 ├── .env.example    template for backend/.env (secrets, connection string)
 └── README.md
@@ -115,7 +115,7 @@ dotnet run -- --seed
 
 ```bash
 dotnet build                                                 # whole solution (backend + tests), 0 warnings
-cd backend.Tests && dotnet run                               # 40 tests (crypto, access control, feed)
+cd backend.Tests && dotnet run                               # 48 tests (crypto, access control, feed, search)
 cd frontend && npm run build                                 # type-check + production build
 cd frontend && npm run gen:api                               # regenerate src/api/schema.d.ts (backend must run)
 cd backend && dotnet ef migrations add <Name> --output-dir Data/Migrations   # needs `dotnet tool restore` once
@@ -131,7 +131,11 @@ cd backend && dotnet ef migrations add <Name> --output-dir Data/Migrations   # n
 **Accounts** — register / log in / log out, then claim a unique `@user_id`
 (4–24 chars, `a-zA-Z0-9_`, case-insensitive uniqueness).
 
-**Contacts** — one place for the friend list, incoming/outgoing requests and user search by ID.
+**Search** — a sidebar search bar finds conversations (group names, and the peer of your own
+direct chats) and people by handle in one request. Groups are discoverable by name even when you
+are not a member, but the results only list them: opening one without membership returns 404.
+
+**Contacts** — one place for the friend list and incoming/outgoing requests.
 Clicking a contact opens (or reuses) a 1-on-1 chat, so the row itself is the primary action.
 Removing a contact is a two-step inline confirmation; the existing chat and its history survive.
 

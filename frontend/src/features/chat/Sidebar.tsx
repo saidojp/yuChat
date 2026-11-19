@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { BookUser, MessageSquarePlus } from 'lucide-react'
+import { BookUser, MessageSquarePlus, Search } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { api } from '../../api/client'
 import type { ChatSummary } from '../../api/types'
 import { Avatar } from './Avatar'
 import { ProfileMenu } from './ProfileMenu'
+import { SidebarSearch } from './SidebarSearch'
 import { SystemEventText } from './SystemEventText'
 
 type SidebarProps = {
@@ -26,22 +28,40 @@ export function Sidebar({
   onOpenContacts,
 }: SidebarProps) {
   const { t } = useTranslation()
+  const [searching, setSearching] = useState(false)
 
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.friends, staleTime: 30_000 })
   const pendingRequests = friends.data?.incoming.length ?? 0
 
   return (
     <aside className="flex h-full w-[290px] shrink-0 flex-col border-r border-ink-200 bg-ink-50/60">
-      <div className="flex items-center gap-2 px-3 pb-2 pt-3">
+      <div className="px-3 pb-1 pt-3">
         <ProfileMenu />
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
-        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-          {t('sidebar.chats')}
-        </p>
+      {searching ? (
+        <SidebarSearch onOpenChat={onSelectChat} onClose={() => setSearching(false)} />
+      ) : (
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            onClick={() => setSearching(true)}
+            className="flex h-8 w-full items-center gap-1.5 rounded-full bg-ink-100 px-2.5 text-left text-[12px] text-ink-400 transition hover:bg-ink-200/60"
+          >
+            <Search size={13} className="shrink-0" />
+            {t('search.barPlaceholder')}
+          </button>
+        </div>
+      )}
 
-        {chats.length === 0 ? (
+      <div className="flex-1 overflow-y-auto px-2 pb-2 scrollbar-thin">
+        {searching ? null : (
+          <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+            {t('sidebar.chats')}
+          </p>
+        )}
+
+        {searching ? null : chats.length === 0 ? (
           <div className="px-2 py-6 text-center">
             <p className="text-xs text-ink-500">{t('sidebar.emptyChats')}</p>
             <p className="mt-1 text-[11px] text-ink-400">{t('sidebar.emptyChatsHint')}</p>

@@ -79,6 +79,20 @@ export type ChatSummary = {
   lastSystemEvent: SystemEventPayload | null
 }
 
+export type ChatSearchResult = {
+  id: string
+  kind: ChatKind
+  isGroup: boolean
+  title: string
+  participants: ChatParticipant[]
+  unreadCount: number
+}
+
+export type SearchResponse = {
+  chats: ChatSearchResult[]
+  users: UserSearchResult[]
+}
+
 export type ChatDetails = {
   id: string
   kind: ChatKind

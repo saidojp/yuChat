@@ -56,6 +56,7 @@ internal sealed class TestHarness : IAsyncDisposable
         services.AddScoped<UserService>();
         services.AddScoped<FriendService>();
         services.AddScoped<ChatService>();
+        services.AddScoped<YuChat.Features.Search.SearchService>();
 
         var provider = services.BuildServiceProvider();
 
@@ -98,6 +99,12 @@ internal sealed class TestHarness : IAsyncDisposable
     {
         var scope = Provider.CreateAsyncScope();
         return scope.ServiceProvider.GetRequiredService<FriendService>();
+    }
+
+    public async Task<YuChat.Features.Search.SearchService> SearchServiceAsync()
+    {
+        var scope = Provider.CreateAsyncScope();
+        return scope.ServiceProvider.GetRequiredService<YuChat.Features.Search.SearchService>();
     }
 
     public async Task<ChatService> ChatServiceAsync()

@@ -14,6 +14,7 @@ using YuChat.Features.Auth;
 using YuChat.Features.Chats;
 using YuChat.Features.Friends;
 using YuChat.Features.Notifications;
+using YuChat.Features.Search;
 using YuChat.Features.Users;
 using YuChat.Infrastructure.Encryption;
 using YuChat.Infrastructure.Errors;
@@ -94,6 +95,7 @@ builder.Services.AddScoped<ChatAccessService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<FriendService>();
+builder.Services.AddScoped<SearchService>();
 builder.Services.AddScoped<ChatService>();
 
 builder.Services.AddHttpContextAccessor();
@@ -189,6 +191,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", timestamp = DateTime
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapFriendEndpoints();
+app.MapSearchEndpoints();
 app.MapChatEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 

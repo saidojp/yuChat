@@ -49,6 +49,10 @@ const ja: Translation = {
     connected: '接続中',
   },
   search: {
+    barPlaceholder: '検索',
+    clear: 'クリア',
+    chatsSection: 'チャット',
+    peopleSection: 'ユーザー',
     title: 'ユーザーを探す',
     placeholder: 'ユーザーIDで検索',
     hint: '2文字以上入力してください。',

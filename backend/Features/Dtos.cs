@@ -126,6 +126,22 @@ public sealed record GroupCreationResultDto(
     ChatSummaryDto Chat,
     IReadOnlyList<string> InvitedHandles);
 
+// ---- Global search ----
+
+/// <summary>A conversation matched by the global search bar.</summary>
+public sealed record ChatSearchResultDto(
+    Guid Id,
+    string Kind,
+    bool IsGroup,
+    string Title,
+    IReadOnlyList<ChatParticipantDto> Participants,
+    int UnreadCount);
+
+public sealed record SearchResponseDto(
+    IReadOnlyList<ChatSearchResultDto> Chats,
+    IReadOnlyList<UserSearchResultDto> Users);
+
+
 // ---- Realtime payloads ----
 
 public sealed record TypingEventDto(Guid ChatRoomId, Guid UserId, string UserHandle, bool IsTyping);
