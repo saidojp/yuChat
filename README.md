@@ -12,7 +12,7 @@ Japanese is selected automatically when the browser prefers it.
 .
 ├── YuChat.slnx     solution: backend + tests
 ├── backend/        ASP.NET Core Web API (.NET 10) + SignalR + EF Core
-├── backend.Tests/  xUnit: encryption unit tests + access-control integration tests
+├── backend.Tests/  xUnit: encryption, access control and system feed tests
 ├── frontend/       Vite + React + TypeScript + Tailwind CSS
 ├── .env.example    template for backend/.env (secrets, connection string)
 └── README.md
@@ -115,7 +115,7 @@ dotnet run -- --seed
 
 ```bash
 dotnet build                                                 # whole solution (backend + tests), 0 warnings
-cd backend.Tests && dotnet run                               # 28 tests (encryption + access control)
+cd backend.Tests && dotnet run                               # 40 tests (crypto, access control, feed)
 cd frontend && npm run build                                 # type-check + production build
 cd frontend && npm run gen:api                               # regenerate src/api/schema.d.ts (backend must run)
 cd backend && dotnet ef migrations add <Name> --output-dir Data/Migrations   # needs `dotnet tool restore` once
@@ -131,16 +131,22 @@ cd backend && dotnet ef migrations add <Name> --output-dir Data/Migrations   # n
 **Accounts** — register / log in / log out, then claim a unique `@user_id`
 (4–24 chars, `a-zA-Z0-9_`, case-insensitive uniqueness).
 
-**Friends** — search by user ID, send requests, accept or decline. One row per relationship, so a
-reverse request simply accepts the pending one instead of creating a duplicate.
+**Contacts** — one place for the friend list, incoming/outgoing requests and user search by ID.
+Clicking a contact opens (or reuses) a 1-on-1 chat, so the row itself is the primary action.
+Removing a contact is a two-step inline confirmation; the existing chat and its history survive.
 
-**Chats** — 1-on-1 chats (friends only, one room per pair) and groups. When creating a group you can
-pick friends directly and add people by user ID; non-friends receive an invitation instead of being
-added, optionally with a friend request alongside it.
+**Chats** — 1-on-1 chats (contacts only, one room per pair) and groups. "Start a chat" opens a single
+dialog with a Direct tab (pick a contact) and a Group tab (name, contacts, people added by user ID).
+Non-contacts receive an invitation instead of being added, optionally with a friend request.
 
-**Realtime (SignalR)** — messages, read receipts, typing indicators, presence, new chats,
-invitations and notifications. On connect the server already subscribes the connection to every
-chat the user belongs to, so messages keep arriving in rooms that are not currently open.
+**Notifications feed** — every user has one pinned `System` room that behaves like a chat: friend
+requests, group invitations, acceptances and contact removals land there with inline actions and an
+unread badge. Only the event type plus references are stored (no rendered sentence), so the whole
+history re-renders in the reader's language.
+
+**Realtime (SignalR)** — messages, read receipts, typing indicators, presence, new chats and
+invitations. On connect the server already subscribes the connection to every chat the user belongs
+to, so messages keep arriving in rooms that are not currently open.
 
 **History** — keyset pagination by message timestamp (`beforeSentAt`, 30 per page by default,
 50 max), oldest-first rendering.
@@ -176,7 +182,7 @@ Not implemented, by design or for v1:
 
 - Email addresses, password reset, account recovery (the platform has logins only)
 - Message editing, deletion, or search (search is impossible over at-rest ciphertext without a blind index)
-- Leaving a group, removing members, deleting a chat or a friendship
+- Leaving a group, removing members, deleting a chat
 - Group roles (everyone is a peer), message threads, attachments, reactions
 - Multi-instance scale-out: presence and typing use an in-memory tracker, so one server process only
   (a Redis backplane would be the next step)

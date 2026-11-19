@@ -64,6 +64,13 @@ public sealed class ChatRoomConfiguration : IEntityTypeConfiguration<ChatRoom>
         builder.HasIndex(x => x.DirectKey).IsUnique();
         builder.HasIndex(x => x.SystemOwnerId).IsUnique();
         builder.HasIndex(x => x.LastMessageAt);
+
+        // System rooms are per-user: deleting the owner must not leave an orphaned feed behind.
+        builder.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(x => x.SystemOwnerId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 

@@ -183,7 +183,7 @@ export function ContactsModal({
                         }`}
                       >
                         <Trash2 size={12} />
-                        {confirming ? t('contacts.confirmRemove') : null}
+                        {confirming ? <span className="whitespace-nowrap">{t('contacts.confirmRemove')}</span> : null}
                       </button>
                     </div>
                   ) : (

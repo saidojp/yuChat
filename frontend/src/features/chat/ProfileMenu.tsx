@@ -42,25 +42,29 @@ export function ProfileMenu() {
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        aria-label={t('profile.settings')}
-        className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-ink-100/70"
-      >
-        <Avatar name={handle} size={28} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-tight">@{user?.userHandle}</p>
-          <p className="truncate text-[11px] leading-tight text-ink-400">{user?.login}</p>
-        </div>
-        <LanguageSwitcher className="mr-1" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          aria-expanded={open}
+          aria-label={t('profile.settings')}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-ink-100/70"
+        >
+          <Avatar name={handle} size={28} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium leading-tight">@{user?.userHandle}</p>
+            <p className="truncate text-[11px] leading-tight text-ink-400">{user?.login}</p>
+          </div>
+        </button>
+
+        {/* Sibling, not a child: a nested button would be invalid HTML. */}
+        <LanguageSwitcher />
+      </div>
 
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 animate-fade-in-up overflow-hidden rounded-lg border border-ink-200 bg-white shadow-lg"
+          className="absolute left-0 top-[calc(100%+6px)] z-40 w-full animate-fade-in-up overflow-hidden rounded-lg border border-ink-200 bg-white shadow-lg"
         >
           <div className="border-b border-ink-100 px-3 py-2">
             <p className="truncate text-[13px] font-medium">@{user?.userHandle}</p>

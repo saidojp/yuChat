@@ -367,6 +367,14 @@ namespace YuChat.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("YuChat.Domain.ChatRoom", b =>
+                {
+                    b.HasOne("YuChat.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("SystemOwnerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+                });
+
             modelBuilder.Entity("YuChat.Domain.Friendship", b =>
                 {
                     b.HasOne("YuChat.Domain.User", "Addressee")
