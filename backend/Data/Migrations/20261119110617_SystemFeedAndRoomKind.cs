@@ -18,10 +18,6 @@ namespace YuChat.Data.Migrations
                 name: "IX_Messages_SenderId_ClientMessageId",
                 table: "Messages");
 
-            migrationBuilder.DropColumn(
-                name: "IsGroup",
-                table: "ChatRooms");
-
             migrationBuilder.AlterColumn<Guid>(
                 name: "SenderId",
                 table: "Messages",
@@ -42,7 +38,7 @@ namespace YuChat.Data.Migrations
                 type: "character varying(16)",
                 maxLength: 16,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "User");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "ReferenceId",
@@ -70,7 +66,10 @@ namespace YuChat.Data.Migrations
                 type: "character varying(16)",
                 maxLength: 16,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "Direct");
+
+            // Existing rooms: preserve the previous IsGroup flag before the column is dropped.
+            migrationBuilder.Sql("UPDATE \"ChatRooms\" SET \"Kind\" = 'Group' WHERE \"IsGroup\" = TRUE;");
 
             migrationBuilder.AddColumn<Guid>(
                 name: "SystemOwnerId",
@@ -90,6 +89,11 @@ namespace YuChat.Data.Migrations
                 table: "ChatRooms",
                 column: "SystemOwnerId",
                 unique: true);
+
+            // Drop the superseded flag only after its data has been carried over to Kind.
+            migrationBuilder.DropColumn(
+                name: "IsGroup",
+                table: "ChatRooms");
         }
 
         /// <inheritdoc />

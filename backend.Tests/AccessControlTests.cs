@@ -84,7 +84,7 @@ public sealed class AccessControlTests
 
         Assert.Equal(first.Id, second.Id);
 
-        var count = await harness.WithDbAsync(db => db.ChatRooms.CountAsync());
+        var count = await harness.WithDbAsync(db => db.ChatRooms.CountAsync(x => x.Kind == ChatRoomKind.Direct));
         Assert.Equal(1, count);
     }
 
@@ -154,7 +154,7 @@ public sealed class AccessControlTests
 
         await chatService.SendMessageAsync(chat.Id, alice.Id, Guid.CreateVersion7(), "top secret plaintext", CancellationToken.None);
 
-        var stored = await harness.WithDbAsync(db => db.Messages.SingleAsync());
+        var stored = await harness.WithDbAsync(db => db.Messages.SingleAsync(x => x.Kind == MessageKind.User));
         var storedBytes = System.Text.Encoding.UTF8.GetString(stored.CipherText);
 
         Assert.DoesNotContain("top secret", storedBytes, StringComparison.OrdinalIgnoreCase);
@@ -179,7 +179,7 @@ public sealed class AccessControlTests
         var second = await chatService.SendMessageAsync(chat.Id, alice.Id, clientId, "hello", CancellationToken.None);
 
         Assert.Equal(first.Message.Id, second.Message.Id);
-        Assert.Equal(1, await harness.WithDbAsync(db => db.Messages.CountAsync()));
+        Assert.Equal(1, await harness.WithDbAsync(db => db.Messages.CountAsync(x => x.Kind == MessageKind.User)));
     }
 
     [Fact]
@@ -261,14 +261,18 @@ public sealed class AccessControlTests
         await chatService.SendMessageAsync(chat.Id, alice.Id, Guid.CreateVersion7(), "one", CancellationToken.None);
         await chatService.SendMessageAsync(chat.Id, alice.Id, Guid.CreateVersion7(), "two", CancellationToken.None);
 
+        // The pinned system feed is part of the list, so select the direct room explicitly.
         var chats = await chatService.GetChatsAsync(bob.Id, CancellationToken.None);
-        Assert.Equal(2, chats.Single().UnreadCount);
+        Assert.Equal(2, chats.Single(x => x.Id == chat.Id).UnreadCount);
 
-        var last = await harness.WithDbAsync(db => db.Messages.OrderByDescending(x => x.SentAt).FirstAsync());
+        var last = await harness.WithDbAsync(db => db.Messages
+            .Where(x => x.Kind == MessageKind.User)
+            .OrderByDescending(x => x.SentAt)
+            .FirstAsync());
         await chatService.MarkReadAsync(chat.Id, bob.Id, last.Id, CancellationToken.None);
 
         var afterRead = await chatService.GetChatsAsync(bob.Id, CancellationToken.None);
-        Assert.Equal(0, afterRead.Single().UnreadCount);
+        Assert.Equal(0, afterRead.Single(x => x.Id == chat.Id).UnreadCount);
     }
 
     [Fact]

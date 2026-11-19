@@ -52,7 +52,7 @@ internal sealed class TestHarness : IAsyncDisposable
         services.AddLogging();
         services.AddSingleton<RealtimeNotifier>();
         services.AddScoped<ChatAccessService>();
-        services.AddScoped<NotificationService>();
+        services.AddScoped<SystemFeedService>();
         services.AddScoped<UserService>();
         services.AddScoped<FriendService>();
         services.AddScoped<ChatService>();
