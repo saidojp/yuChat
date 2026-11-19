@@ -25,6 +25,10 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_NOLOGO=1 \
     DOTNET_CLI_TELEMETRY_OPTOUT=1
 COPY --from=backend-build /app/publish ./
+# Release-phase hook (heroku.yml). Kept as a script so Heroku's own `sh -c` wrapper cannot
+# swallow the working directory change.
+COPY docker/release.sh /app/release.sh
+RUN chmod +x /app/release.sh
 
 # Heroku injects PORT; the base image sets ASPNETCORE_HTTP_PORTS=8080, so clear it and bind explicitly.
 CMD ["sh", "-c", "unset ASPNETCORE_HTTP_PORTS; exec dotnet /app/YuChat.Api.dll --urls http://0.0.0.0:${PORT:-8080}"]

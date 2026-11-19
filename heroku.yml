@@ -3,9 +3,7 @@ build:
     web: Dockerfile
 release:
   image: web
-  # Heroku runs release commands from an arbitrary working directory, so enter /app explicitly:
-  # without it dotnet cannot resolve YuChat.Api.dll or appsettings.json.
+  # Heroku runs release commands from an arbitrary directory and wraps them in its own shell,
+  # so the entry point is an absolute script baked into the image.
   command:
-    - sh
-    - -c
-    - cd /app && exec dotnet YuChat.Api.dll --migrate
+    - /app/release.sh
