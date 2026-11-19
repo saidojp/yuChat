@@ -57,7 +57,11 @@ builder.Services.AddOptions<FrontendOptions>().BindConfiguration(FrontendOptions
 var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
 
-var connectionString = ConnectionStringNormalizer.Normalize(rawConnectionString);
+// Small managed Postgres plans cap total connections (Heroku essential-0: 20), so the pool is
+// tunable per environment instead of hard-coded.
+var maxPoolSize = builder.Configuration.GetValue<int?>("Database:MaxPoolSize");
+
+var connectionString = ConnectionStringNormalizer.Normalize(rawConnectionString, maxPoolSize);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -169,10 +173,18 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+// Managed platforms (Heroku, Render) terminate TLS at their router and forward requests over
+// plain HTTP. Without trusting those headers the app sees the proxy as the client, so
+// X-Forwarded-For-driven rate limiting would collapse every user into one bucket.
+var forwardedHeaders = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
-});
+};
+
+forwardedHeaders.KnownIPNetworks.Clear();
+forwardedHeaders.KnownProxies.Clear();
+
+app.UseForwardedHeaders(forwardedHeaders);
 
 app.UseExceptionHandler();
 
@@ -186,6 +198,10 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Production ships the React build in wwwroot (see Dockerfile); in development Vite serves it.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow })).AllowAnonymous();
 
 app.MapAuthEndpoints();
@@ -194,6 +210,18 @@ app.MapFriendEndpoints();
 app.MapSearchEndpoints();
 app.MapChatEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
+
+// Unknown API routes must stay 404 JSON-ish instead of silently returning the SPA shell.
+app.MapFallback("/api/{**path}", () => Results.NotFound());
+app.MapFallbackToFile("index.html");
+
+if (args.Contains("--migrate"))
+{
+    // Used by the Heroku release phase: schema is applied before the new dyno starts.
+    await using var migrationScope = app.Services.CreateAsyncScope();
+    await migrationScope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    return;
+}
 
 if (args.Contains("--seed"))
 {

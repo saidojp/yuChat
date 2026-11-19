@@ -3,13 +3,16 @@ using Npgsql;
 namespace YuChat.Infrastructure.Options;
 
 /// <summary>
-/// Render (and most managed providers) hand out a URI-style URL
+/// Render and Heroku hand out a URI-style URL
 /// (<c>postgres://user:pass@host:5432/db</c>) while Npgsql expects a key/value string.
 /// This normalizes both forms and applies the SSL settings required for external access.
 /// </summary>
 public static class ConnectionStringNormalizer
 {
-    public static string Normalize(string connectionString)
+    /// <summary>Default pool size; small managed plans cap total connections (Heroku essential-0: 20).</summary>
+    public const int DefaultMaxPoolSize = 20;
+
+    public static string Normalize(string connectionString, int? maxPoolSize = null)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -17,14 +20,29 @@ public static class ConnectionStringNormalizer
         }
 
         var trimmed = connectionString.Trim();
+        var builder = IsUri(trimmed)
+            ? FromUri(trimmed)
+            : new NpgsqlConnectionStringBuilder(trimmed);
 
-        if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
-            && !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        if (maxPoolSize is > 0)
         {
-            return trimmed;
+            builder.MaxPoolSize = maxPoolSize.Value;
+        }
+        else if (builder.MaxPoolSize <= 0)
+        {
+            builder.MaxPoolSize = DefaultMaxPoolSize;
         }
 
-        var uri = new Uri(trimmed);
+        return builder.ConnectionString;
+    }
+
+    private static bool IsUri(string connectionString) =>
+        connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        || connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase);
+
+    private static NpgsqlConnectionStringBuilder FromUri(string connectionString)
+    {
+        var uri = new Uri(connectionString);
         var userInfo = uri.UserInfo.Split(':', 2);
 
         var builder = new NpgsqlConnectionStringBuilder
@@ -36,7 +54,7 @@ public static class ConnectionStringNormalizer
             Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty,
             SslMode = SslMode.Require,
             Pooling = true,
-            MaxPoolSize = 20,
+            MaxPoolSize = DefaultMaxPoolSize,
         };
 
         // Render includes ?sslmode=disable on the internal URL; honour it explicitly.
@@ -57,6 +75,8 @@ public static class ConnectionStringNormalizer
             };
         }
 
-        return builder.ConnectionString;
+        // Heroku's DATABASE_URL carries only the credentials; keep TLS verify at the driver default
+        // (VerifyFull on Npgsql 8+) unless the URL asks otherwise.
+        return builder;
     }
 }

@@ -16,8 +16,10 @@ backend.Tests/obj/
 .env
 .env.local
 *.env.local
+backend/.env
 backend/appsettings.Local.json
 backend/appsettings.Production.json
+HEROKU_SECRETS_BACKUP.txt
 
 # Tooling / OS
 .DS_Store

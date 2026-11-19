@@ -1,0 +1,21 @@
+# Version control and IDE state
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/.idea
+**/.DS_Store
+
+# Build artifacts (rebuilt inside the image)
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+
+# Local secrets and notes — never enter the build context
+**/.env
+**/.env.local
+**/appsettings.Local.json
+**/appsettings.Production.json
+HEROKU_SECRETS_BACKUP.txt

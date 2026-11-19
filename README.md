@@ -124,6 +124,40 @@ cd backend && dotnet ef migrations add <Name> --output-dir Data/Migrations   # n
 > `dotnet test` is not used: on the .NET 10 SDK the xUnit v3 runner is a self-hosting executable,
 > so the project is run directly with `dotnet run`.
 
+### Deploy to Heroku
+
+The repository ships a single-container image (`Dockerfile`): the Vite build is published into
+`wwwroot` and served by the API, so `/api`, `/hubs/chat` and the refresh cookie share one origin.
+
+```bash
+heroku create <app> --region us
+heroku stack:set container -a <app>
+heroku addons:create heroku-postgresql:essential-0 -a <app>
+
+heroku config:set \
+  ASPNETCORE_ENVIRONMENT=Production \
+  ConnectionStrings__DefaultConnection="$(heroku config:get DATABASE_URL -a <app>)" \
+  Jwt__Key="$(openssl rand -hex 32)" \
+  Encryption__MasterKey="$(openssl rand -base64 32)" \
+  Frontend__Origin="https://<app>.herokuapp.com" \
+  Frontend__UseRefreshCookie=true \
+  Database__MaxPoolSize=8 \
+  -a <app>
+
+heroku git:remote -a <app>
+git push heroku main          # Heroku builds the image; the release phase runs `--migrate`
+heroku ps:type web=basic -a <app>
+heroku ps:scale web=1 -a <app>
+```
+
+Notes:
+
+- `Database__MaxPoolSize=8` keeps one dyno (+ release phase + `pg:psql`) inside the 20-connection
+  limit of `essential-0`.
+- Exactly one web dyno: presence and typing indicators live in process memory.
+- `--migrate` applies EF Core migrations; `--seed` must not be used in production (demo passwords).
+- Never lose `Encryption__MasterKey` — without it the stored messages stay unreadable.
+
 ---
 
 ## 4. Feature overview
