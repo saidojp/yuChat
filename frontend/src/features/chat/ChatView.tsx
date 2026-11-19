@@ -190,11 +190,13 @@ export function ChatView({
             {
               id: ack.id,
               chatRoomId: ack.chatRoomId,
+              kind: 'User',
               senderId: user!.id,
               senderHandle: user!.userHandle ?? user!.login,
               content,
               clientMessageId: ack.clientMessageId,
               sentAt: ack.sentAt,
+              systemEvent: null,
             },
           ],
         }

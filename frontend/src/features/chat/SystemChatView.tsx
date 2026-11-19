@@ -103,7 +103,6 @@ export function SystemChatView({ chat, onBack, onOpenChat }: { chat: ChatSummary
                 onDeclineFriend={(id) => respondFriend.mutate({ id, action: 'decline' })}
                 onAcceptInvitation={(id) => respondInvitation.mutate({ id, action: 'accept' })}
                 onDeclineInvitation={(id) => respondInvitation.mutate({ id, action: 'decline' })}
-                onOpenChat={onOpenChat}
                 busy={respondFriend.isPending || respondInvitation.isPending}
               />
             ))}
@@ -124,7 +123,6 @@ function FeedItem({
   onDeclineFriend,
   onAcceptInvitation,
   onDeclineInvitation,
-  onOpenChat,
   busy,
 }: {
   message: Message
@@ -134,7 +132,6 @@ function FeedItem({
   onDeclineFriend: (id: string) => void
   onAcceptInvitation: (id: string) => void
   onDeclineInvitation: (id: string) => void
-  onOpenChat: (chatId: string) => void
   busy: boolean
 }) {
   const { t } = useTranslation()

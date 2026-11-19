@@ -34,10 +34,6 @@ export function ContactsModal({
     return () => window.clearTimeout(timer)
   }, [query])
 
-  useEffect(() => {
-    setConfirmingId(null)
-  }, [tab])
-
   const searching = debounced.length >= 2
 
   const overview = useQuery({ queryKey: ['friends'], queryFn: api.friends })
@@ -134,7 +130,10 @@ export function ContactsModal({
               <button
                 key={entry.key}
                 type="button"
-                onClick={() => setTab(entry.key)}
+                onClick={() => {
+                  setTab(entry.key)
+                  setConfirmingId(null)
+                }}
                 className={`flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition ${
                   tab === entry.key ? 'bg-white text-ink-900 shadow-sm' : 'text-ink-500 hover:text-ink-800'
                 }`}

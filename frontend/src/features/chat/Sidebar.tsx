@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { api } from '../../api/client'
 import type { ChatSummary } from '../../api/types'
-import { useAuth } from '../auth/useAuth'
 import { Avatar } from './Avatar'
 import { ProfileMenu } from './ProfileMenu'
 import { SystemEventText } from './SystemEventText'
@@ -27,7 +26,6 @@ export function Sidebar({
   onOpenContacts,
 }: SidebarProps) {
   const { t } = useTranslation()
-  const { user } = useAuth()
 
   const friends = useQuery({ queryKey: ['friends'], queryFn: api.friends, staleTime: 30_000 })
   const pendingRequests = friends.data?.incoming.length ?? 0

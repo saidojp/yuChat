@@ -7,14 +7,13 @@ import { api } from '../../api/client'
 import { chatConnection } from '../../realtime/connection'
 import { useAuth } from '../auth/useAuth'
 import { ChatView } from './ChatView'
-import { FriendsModal } from './FriendsModal'
-import { GroupModal } from './GroupModal'
+import { ContactsModal } from './ContactsModal'
 import { MembersModal } from './MembersModal'
-import { NotificationsModal } from './NotificationsModal'
-import { SearchModal } from './SearchModal'
+import { NewChatModal } from './NewChatModal'
 import { Sidebar } from './Sidebar'
+import { SystemChatView } from './SystemChatView'
 
-type OpenModal = 'search' | 'friends' | 'group' | 'notifications' | 'members' | null
+type OpenModal = 'contacts' | 'newChat' | 'members' | null
 
 export function WorkspacePage() {
   const { t } = useTranslation()
@@ -28,6 +27,7 @@ export function WorkspacePage() {
 
   const chats = useQuery({ queryKey: ['chats'], queryFn: api.chats, refetchOnWindowFocus: false })
   const activeChat = chats.data?.find((chat) => chat.id === routeChatId) ?? null
+  const isSystemChat = activeChat?.kind === 'System'
 
   // A user who has not finished onboarding must not reach the workspace.
   useEffect(() => {
@@ -46,29 +46,34 @@ export function WorkspacePage() {
     const onReconnected = () => {
       void queryClient.invalidateQueries({ queryKey: ['chats'] })
       void queryClient.invalidateQueries({ queryKey: ['messages'] })
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      void queryClient.invalidateQueries({ queryKey: ['friends'] })
       void queryClient.invalidateQueries({ queryKey: ['invitations'] })
     }
 
     const unsubscribeReconnected = chatConnection.on('reconnected', onReconnected)
-    const unsubscribeNotification = chatConnection.on('notification', () => {
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-    })
-    const unsubscribeFriend = chatConnection.on('friendRequestUpdated', () => {
-      void queryClient.invalidateQueries({ queryKey: ['friends'] })
-    })
-    const unsubscribeInvitation = chatConnection.on('invitationReceived', () => {
-      void queryClient.invalidateQueries({ queryKey: ['invitations'] })
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] })
-    })
-    const unsubscribeChatCreated = chatConnection.on('chatCreated', (chat) => {
+
+    // Every push that changes a chat or a relationship refreshes the cached lists. The realtime
+    // contract deliberately stays generic so new event types need no extra plumbing here.
+    const refreshChats = () => {
       void queryClient.invalidateQueries({ queryKey: ['chats'] })
+    }
+    const refreshRelationships = () => {
+      void queryClient.invalidateQueries({ queryKey: ['friends'] })
+      void queryClient.invalidateQueries({ queryKey: ['invitations'] })
+      refreshChats()
+    }
+
+    const unsubscribeMessage = chatConnection.on('message', refreshChats)
+    const unsubscribeFriend = chatConnection.on('friendRequestUpdated', refreshRelationships)
+    const unsubscribeInvitation = chatConnection.on('invitationReceived', refreshRelationships)
+    const unsubscribeChatCreated = chatConnection.on('chatCreated', (chat) => {
+      refreshChats()
       // Subscribe this connection to the new room immediately: a freshly added group member must
       // receive typing/read events even before opening the chat.
       void chatConnection.joinChat(chat.id)
     })
     const unsubscribeChatUpdated = chatConnection.on('chatUpdated', (chat) => {
-      void queryClient.invalidateQueries({ queryKey: ['chats'] })
+      refreshChats()
       void chatConnection.joinChat(chat.id)
     })
 
@@ -77,7 +82,7 @@ export function WorkspacePage() {
     return () => {
       unsubscribeState()
       unsubscribeReconnected()
-      unsubscribeNotification()
+      unsubscribeMessage()
       unsubscribeFriend()
       unsubscribeInvitation()
       unsubscribeChatCreated()
@@ -90,27 +95,31 @@ export function WorkspacePage() {
     setModal(null)
   }
 
+  const chatIsOpen = Boolean(routeChatId)
+
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <div className={`${routeChatId ? 'hidden md:flex' : 'flex'} h-full`}>
+      <div className={`${chatIsOpen ? 'hidden md:flex' : 'flex'} h-full`}>
         <Sidebar
           chats={chats.data ?? []}
           activeChatId={routeChatId ?? null}
           connectionState={connectionState}
           onSelectChat={openChat}
-          onOpenSearch={() => setModal('search')}
-          onOpenFriends={() => setModal('friends')}
-          onOpenGroup={() => setModal('group')}
-          onOpenNotifications={() => setModal('notifications')}
+          onOpenNewChat={() => setModal('newChat')}
+          onOpenContacts={() => setModal('contacts')}
         />
       </div>
 
-      <div className={`${routeChatId ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
-        <ChatView
-          chat={activeChat}
-          onBack={() => navigate('/app')}
-          onOpenMembers={() => setModal('members')}
-        />
+      <div className={`${chatIsOpen ? 'flex' : 'hidden md:flex'} min-w-0 flex-1`}>
+        {isSystemChat && activeChat ? (
+          <SystemChatView chat={activeChat} onBack={() => navigate('/app')} onOpenChat={openChat} />
+        ) : (
+          <ChatView
+            chat={activeChat}
+            onBack={() => navigate('/app')}
+            onOpenMembers={() => setModal('members')}
+          />
+        )}
       </div>
 
       {connectionState === 'offline' ? (
@@ -119,12 +128,8 @@ export function WorkspacePage() {
         </div>
       ) : null}
 
-      {modal === 'search' ? <SearchModal onClose={() => setModal(null)} onChatStarted={openChat} /> : null}
-      {modal === 'friends' ? <FriendsModal onClose={() => setModal(null)} onChatStarted={openChat} /> : null}
-      {modal === 'group' ? <GroupModal onClose={() => setModal(null)} onCreated={openChat} /> : null}
-      {modal === 'notifications' ? (
-        <NotificationsModal onClose={() => setModal(null)} onChatOpened={openChat} />
-      ) : null}
+      {modal === 'newChat' ? <NewChatModal onClose={() => setModal(null)} onChatStarted={openChat} /> : null}
+      {modal === 'contacts' ? <ContactsModal onClose={() => setModal(null)} onChatStarted={openChat} /> : null}
       {modal === 'members' && activeChat?.isGroup ? (
         <MembersModal chat={activeChat} onClose={() => setModal(null)} />
       ) : null}
