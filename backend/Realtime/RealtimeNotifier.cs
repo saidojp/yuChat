@@ -23,9 +23,6 @@ public sealed class RealtimeNotifier(IHubContext<ChatHub> hub, ILogger<RealtimeN
     public Task ToChatAsync(Guid chatRoomId, string method, object payload, CancellationToken cancellationToken = default) =>
         SendAsync(() => hub.Clients.Group(ChatHub.GroupName(chatRoomId)).SendCoreAsync(method, [payload], cancellationToken));
 
-    public Task ToChatExceptAsync(Guid chatRoomId, string excludedConnectionId, string method, object payload, CancellationToken cancellationToken = default) =>
-        SendAsync(() => hub.Clients.GroupExcept(ChatHub.GroupName(chatRoomId), excludedConnectionId).SendCoreAsync(method, [payload], cancellationToken));
-
     private async Task SendAsync(Func<Task> send)
     {
         try

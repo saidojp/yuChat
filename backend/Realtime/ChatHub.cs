@@ -91,9 +91,13 @@ public sealed class ChatHub(ChatService chats, ChatAccessService access, Presenc
         var handles = await access.GetHandlesAsync([userId], CancellationToken.None);
         var handle = handles.GetValueOrDefault(userId, string.Empty);
 
-        await notifier.ToChatExceptAsync(
-            chatId,
-            Context.ConnectionId,
+        // Delivered to member ids rather than to the SignalR group: a member who joined a group
+        // but has not opened it yet is subscribed on connect only, so group-targeted fan-out can
+        // miss connections after membership changes. Targeting users is deterministic.
+        var memberIds = await chats.GetMemberIdsAsync(chatId, CancellationToken.None);
+
+        await notifier.ToUsersAsync(
+            memberIds.Where(id => id != userId),
             RealtimeEvents.TypingChanged,
             new TypingEventDto(chatId, userId, handle, isTyping));
     }
