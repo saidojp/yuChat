@@ -27,4 +27,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
 COPY --from=backend-build /app/publish ./
 
 # Heroku injects PORT; the base image sets ASPNETCORE_HTTP_PORTS=8080, so clear it and bind explicitly.
-CMD ["sh", "-c", "unset ASPNETCORE_HTTP_PORTS; exec dotnet YuChat.Api.dll --urls http://0.0.0.0:${PORT:-8080}"]
+CMD ["sh", "-c", "unset ASPNETCORE_HTTP_PORTS; exec dotnet /app/YuChat.Api.dll --urls http://0.0.0.0:${PORT:-8080}"]
